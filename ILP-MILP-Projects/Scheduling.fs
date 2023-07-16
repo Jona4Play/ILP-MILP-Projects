@@ -71,13 +71,18 @@ let shouldWork =
 //! Constraints
 let qualifiedConstraints =
     ConstraintBuilder "Qualified to work constraint" {
-        
+        for shift in shifts do
+            let qualifications = shiftQualifications.[shift] |> List.map snd
+            for employee in workers ->
+                workersQualification.[employee] == qualifications
+                
+
     }
 
-let minimalStaffingConstraints =
-    ConstraintBuilder "Minimal amount of qualified workers" {
+//let minimalStaffingConstraints =
+//    ConstraintBuilder "Minimal amount of qualified workers" {
 
-    }
+//    }
 
 // Maximum worktime per week
 let maxHoursConstraints =
