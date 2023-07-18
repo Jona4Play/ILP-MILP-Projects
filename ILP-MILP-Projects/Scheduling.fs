@@ -5,62 +5,65 @@ open Flips.UnitsOfMeasure
 
 [<Measure>] type Euro
 [<Measure>] type Hour
-[<Measure>] type Shift
+[<Measure>] type Strain
+[<Measure>] type Worker
 
+
+// Challenge: Create a model that is able to create schedule that minimizes costs and strain on workers while respecting these constraints:
+(*
+    - No worker may work over 40 hours a week
+    - No worker may work 2 shifts in one day
+    - Each shift requires a specific amount of workers of a certain occupation
+*)
+
+//! Domain Model
 type Qualification =
-    | EMT = 1
-    | Nurse = 2
-    | Doctor = 3
+    | EMT
+    | Nurse
+    | Doctor
 
+type Shift = {
+    Shiftname:string
+    RequiredPersonal:(int * Qualification) list
+    Length:float
+    Strain:float
+}
+
+type Employee = {
+    Name:string
+    Occupation:Qualification
+    Wage:float<Euro/Hour>
+}
 
 //! Worker information
 let workers = 
     [
-        "Jenna";
-        "Hannah";
-        "George";
-        "Freddy";
-        "Kiley";
-        "Delta";
-        "Marlee";
-        "Lawrence";
-        "Tucker";
+        {Name="Jenna";    Occupation = EMT;     Wage=25.0<Euro/Hour>}
+        {Name="Hannah";   Occupation = Nurse;   Wage=20.0<Euro/Hour>}
+        {Name="George";   Occupation = Doctor;  Wage=30.0<Euro/Hour>}
+        {Name="Freddy";   Occupation = Doctor;  Wage=31.0<Euro/Hour>}
+        {Name="Kiley";    Occupation = Doctor;  Wage=28.0<Euro/Hour>}
+        {Name="Delta";    Occupation = EMT;     Wage=24.0<Euro/Hour>}
+        {Name="Marlee";   Occupation = Doctor;  Wage=34.0<Euro/Hour>}
+        {Name="Lawrence"; Occupation = EMT;     Wage=25.0<Euro/Hour>}
+        {Name="Tucker";   Occupation = Nurse;   Wage=18.0<Euro/Hour>}
     ]
 
 let workersQualification = 
-    [
-        "Jenna", Qualification.EMT
-        "Hannah", Qualification.Nurse
-        "George", Qualification.Doctor
-        "Freddy", Qualification.Doctor
-        "Kiley", Qualification.Doctor
-        "Delta", Qualification.EMT
-        "Marlee", Qualification.Doctor
-        "Lawrence", Qualification.EMT
-        "Tucker", Qualification.Nurse
-    ] |> SMap.ofList
+    [for record in workers -> record.Name, record.Occupation] |> SMap.ofList
 
 let workersWage =
-    [
-        "Jenna" , 25<Euro/Hour>
-        "Hannah", 20<Euro/Hour>
-        "George", 30<Euro/Hour>
-        "Freddy", 31<Euro/Hour>
-        "Kiley", 28<Euro/Hour>
-        "Delta", 24<Euro/Hour>
-        "Marlee", 34<Euro/Hour>
-        "Lawrence", 25<Euro/Hour>
-        "Tucker", 18<Euro/Hour>
-    ] |> SMap.ofList
+    [for record in workers -> record.Name, record.Wage] |> SMap.ofList
+
 
 //! Shift information
 let workdays = [1..7]
 
 let shifts =
     [
-        "Morning Shift"
-        "Late Shift" 
-        "Night Shift"
+        {Shiftname="Morning Shift"; RequiredPersonal=[(1, EMT); (1,Doctor)];             Length=8.0;    Strain=1.2}
+        {Shiftname="Late Shift";    RequiredPersonal=[(1, EMT); (1,Doctor); (1, Nurse)]; Length=8.0;    Strain=1.0}
+        {Shiftname="Night Shift";   RequiredPersonal=[(1,Doctor)];                       Length=8.0;    Strain=1.8}
     ]
 
 let shiftLength = 
@@ -70,12 +73,28 @@ let shiftLength =
         "Night Shift", 8<Hour/Shift>
     ] |> SMap.ofList
 
+
 let shiftQualifications = 
     [
-        "Morning Shift", [(1,Qualification.EMT); (1,Qualification.Doctor)]
-        "Late Shift", [(1,Qualification.EMT); (1,Qualification.Doctor); (1,Qualification.Nurse)]
-        "Night Shift", [(1,Qualification.Doctor)]
+        (("Morning Shift", EMT), 1.0<Worker/Shift>);
+        (("Morning Shift", Doctor), 1.0<Worker/Shift>);
+
+        (("Late Shift", Nurse), 1.0<Worker/Shift>); 
+        (("Late Shift", Doctor), 1.0<Worker/Shift>); 
+        (("Late Shift", EMT), 1.0<Worker/Shift>);
+
+        (("Night Shift", Doctor), 1.0<Worker/Shift>);
+
+    ] |> SMap2.ofList
+
+
+let strainOfShifts =
+    [
+        "Morning Shift", 1.2<Strain/Shift>
+        "Late Shift", 1.0<Strain/Shift>
+        "Night Shift", 2.0<Strain/Shift>
     ] |> SMap.ofList
+
 
 //! Decision
 let shouldWork =
@@ -86,26 +105,24 @@ let shouldWork =
                     Boolean
     } |> SMap3.ofSeq
 
-let employee = shouldWork.[All,1,""]
+
 
 //! Constraints
 let qualifiedConstraints =
-    ConstraintBuilder "Qualified to work constraint" {
-        for day in workdays do
-            for shift in shifts ->
-                let quali = shouldWork.[All,day,shift]
-                let x = shiftQualifications.[shift] |> List.map snd
-                for req in x do
-                    for qualis in quali.Keys ->
-                        ((workersQualification.[qualis]) <== req)
+    ConstraintBuilder "Is qualified and enough of in shift" {
+        for employee in workers do
+            for day in workdays do
+                for shift in shifts do
+                    for quali in occupations ->
+                        shouldWork.[employee, day, shift] >== shiftQualifications.[shift, quali]
     }
-
+let x = shouldWork.["", 1, ""]
 
 // Maximum worktime per week
 let maxHoursConstraints =
     ConstraintBuilder "Maximum Constraint" {
         for employee in workers ->
-            sum (shouldWork.[employee,All,All] .* shiftLength) <== 40<Hour>
+            sum (shouldWork.[employee,All,All] .* shiftLength) <== 40<Hour/Worker>
     }
 
 // No double shift on one day can be worked
@@ -116,10 +133,20 @@ let noDoubleShiftConstraint =
             sum(shouldWork.[employee,day, All]) <== 1.0<Shift>
     }
 
+//! Objectives
 
-//! Minimize costs
+let minimizeStrain =
+    sum(shouldWork .* strainOfShifts)
+    |> Objective.create "Minimize strain on workers" Minimize
+
+//todo Implement a way to minimize it
+//let minimizeShiftSwitch =
+//    sum()
+//    |> Objective.create "Minimize switches in schedule" Minimize
+
+// Minimize costs
 let objective = 
-    sum(shouldWork .* workersWage .* shiftLength)
+    sum(shouldWork .* shiftLength .* workersWage)
     |> Objective.create "Minimize Cost Target" Minimize
 
 
@@ -139,10 +166,10 @@ let printResult result =
     | _ -> printfn $"Unable to solve. Error: %A{result}"
 
 
+
 objective
 |> Model.create
 |> Model.addConstraints qualifiedConstraints
-|> Model.addConstraints minimalStaffingConstraints
 |> Model.addConstraints noDoubleShiftConstraint
 |> Model.addConstraints maxHoursConstraints
 |> Solver.solve Settings.basic
