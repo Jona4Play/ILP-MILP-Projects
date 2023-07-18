@@ -7,6 +7,7 @@ open Flips.UnitsOfMeasure
 [<Measure>] type Hour
 [<Measure>] type Strain
 [<Measure>] type Worker
+[<Measure>] type Shift
 
 
 // Challenge: Create a model that is able to create schedule that minimizes 
@@ -23,7 +24,7 @@ type Qualification =
     | Nurse
     | Doctor
 
-type Shift = {
+type ShiftInfo = {
     Name:string
     RequiredPersonal:(int<Worker> * Qualification) list
     Length:float<Hour>
@@ -35,6 +36,10 @@ type Employee = {
     Occupation:Qualification
     Wage:float<Euro/Hour>
 }
+
+
+
+
 
 //! Worker information
 let workers = 
@@ -56,6 +61,16 @@ let workersQualification =
 let workersWage =
     [for record in workers -> record.Name, record.Wage] |> SMap.ofList
 
+let occupations =
+    [
+        EMT
+        Nurse
+        Doctor
+    ]
+
+
+
+
 
 //! Shift information
 let workdays = [1..7]
@@ -70,7 +85,7 @@ let shifts =
 let shiftLength = 
     [for shift in shifts -> shift.Name, shift.Length] |> SMap.ofList
 
-
+// Compound shift info to an SMap<Shiftname,Qualification> -> Value
 let shiftQualifications = 
     [
         for shift in shifts do
@@ -86,26 +101,25 @@ let strainOfShifts =
 
 //todo Rework Decision and constraints
 
+// Builds a binary matrix per worker of 3 shifts (as columns) and 7 days (as Rows) for every employee
 //! Decision
 let shouldWork =
-    DecisionBuilder "Should Work on this Day" {
+    DecisionBuilder<Shift> "Has to work" {
         for employee in workers do
-            for x in workdays do
+            for day in workdays do
                 for shift in shifts ->
                     Boolean
     } |> SMap3.ofSeq
 
 
 //! Constraints
+//todo Finish
 let qualifiedConstraints =
-    ConstraintBuilder "Is qualified and enough of in shift" {
-        for employee in workers do
-            for day in workdays do
-                for shift in shifts do
-                    for quali in occupations ->
-                        shouldWork.[employee, day, shift] >== shiftQualifications.[shift, quali]
+    ConstraintBuilder "Is qualified and enough workers of in shift" {
+        for shift in shifts do
+            for profession in occupations ->
+                shouldWork.[All, All, shift] .*
     }
-let x = shouldWork.["", 1, ""]
 
 // Maximum worktime per week
 let maxHoursConstraints =
@@ -119,8 +133,14 @@ let noDoubleShiftConstraint =
     ConstraintBuilder "No Double Shift Constraint" {
         for employee in workers do
             for day in workdays ->
-            sum(shouldWork.[employee,day, All]) <== 1.0
+            sum(shouldWork.[employee,day, All]) <== 1.0<Shift>
     }
+
+
+
+
+
+
 
 //! Objectives
 
@@ -130,7 +150,7 @@ let minimizeStrain =
 
 //todo Implement a way to minimize shift switches
 
-//note Maybe cross product? As it is a matrix of 3 shifts by 7 workdays?
+//note Maybe minimize cross product? As it is a matrix?
 
 //let minimizeShiftSwitch =
 //    sum()
@@ -141,7 +161,7 @@ let objective =
     sum(shouldWork .* shiftLength .* workersWage)
     |> Objective.create "Minimize Cost Target" Minimize
 
-
+//todo Rework this function
 // Printing method
 let printResult result =
     match result with
@@ -158,7 +178,7 @@ let printResult result =
     | _ -> printfn $"Unable to solve. Error: %A{result}"
 
 
-
+//! Solve the model
 objective
 |> Model.create
 |> Model.addConstraints qualifiedConstraints
