@@ -9,7 +9,8 @@ open Flips.UnitsOfMeasure
 [<Measure>] type Worker
 
 
-// Challenge: Create a model that is able to create schedule that minimizes costs and strain on workers while respecting these constraints:
+// Challenge: Create a model that is able to create schedule that minimizes 
+// costs and strain on workers while respecting these constraints:
 (*
     - No worker may work over 40 hours a week
     - No worker may work 2 shifts in one day
@@ -23,10 +24,10 @@ type Qualification =
     | Doctor
 
 type Shift = {
-    Shiftname:string
-    RequiredPersonal:(int * Qualification) list
-    Length:float
-    Strain:float
+    Name:string
+    RequiredPersonal:(int<Worker> * Qualification) list
+    Length:float<Hour>
+    Strain:float<Strain>
 }
 
 type Employee = {
@@ -61,50 +62,38 @@ let workdays = [1..7]
 
 let shifts =
     [
-        {Shiftname="Morning Shift"; RequiredPersonal=[(1, EMT); (1,Doctor)];             Length=8.0;    Strain=1.2}
-        {Shiftname="Late Shift";    RequiredPersonal=[(1, EMT); (1,Doctor); (1, Nurse)]; Length=8.0;    Strain=1.0}
-        {Shiftname="Night Shift";   RequiredPersonal=[(1,Doctor)];                       Length=8.0;    Strain=1.8}
+        {Name="Morning Shift"; RequiredPersonal=[(1<Worker>, EMT); (1<Worker>,Doctor)];                     Length=8.0<Hour>;    Strain=1.2<Strain>}
+        {Name="Late Shift";    RequiredPersonal=[(1<Worker>, EMT); (1<Worker>,Doctor); (1<Worker>, Nurse)]; Length=8.0<Hour>;    Strain=1.0<Strain>}
+        {Name="Night Shift";   RequiredPersonal=[(1<Worker>,Doctor)];                                       Length=8.0<Hour>;    Strain=1.8<Strain>}
     ]
 
 let shiftLength = 
-    [
-        "Morning Shift", 8<Hour/Shift>
-        "Late Shift", 8<Hour/Shift>
-        "Night Shift", 8<Hour/Shift>
-    ] |> SMap.ofList
+    [for shift in shifts -> shift.Name, shift.Length] |> SMap.ofList
 
 
 let shiftQualifications = 
     [
-        (("Morning Shift", EMT), 1.0<Worker/Shift>);
-        (("Morning Shift", Doctor), 1.0<Worker/Shift>);
-
-        (("Late Shift", Nurse), 1.0<Worker/Shift>); 
-        (("Late Shift", Doctor), 1.0<Worker/Shift>); 
-        (("Late Shift", EMT), 1.0<Worker/Shift>);
-
-        (("Night Shift", Doctor), 1.0<Worker/Shift>);
-
+        for shift in shifts do
+            let requiredWorkers = shift.RequiredPersonal |> List.map fst
+            let qualifications = shift.RequiredPersonal |> List.map snd
+            for x = 0 to qualifications.Length - 1 do
+                (shift.Name, qualifications[x]), requiredWorkers.[x] 
     ] |> SMap2.ofList
 
 
 let strainOfShifts =
-    [
-        "Morning Shift", 1.2<Strain/Shift>
-        "Late Shift", 1.0<Strain/Shift>
-        "Night Shift", 2.0<Strain/Shift>
-    ] |> SMap.ofList
+    [for shift in shifts -> shift.Name, shift.Strain] |> SMap.ofList
 
+//todo Rework Decision and constraints
 
 //! Decision
 let shouldWork =
-    DecisionBuilder<Shift> "Should Work on this Day" {
+    DecisionBuilder "Should Work on this Day" {
         for employee in workers do
             for x in workdays do
                 for shift in shifts ->
                     Boolean
     } |> SMap3.ofSeq
-
 
 
 //! Constraints
@@ -130,7 +119,7 @@ let noDoubleShiftConstraint =
     ConstraintBuilder "No Double Shift Constraint" {
         for employee in workers do
             for day in workdays ->
-            sum(shouldWork.[employee,day, All]) <== 1.0<Shift>
+            sum(shouldWork.[employee,day, All]) <== 1.0
     }
 
 //! Objectives
@@ -139,7 +128,10 @@ let minimizeStrain =
     sum(shouldWork .* strainOfShifts)
     |> Objective.create "Minimize strain on workers" Minimize
 
-//todo Implement a way to minimize it
+//todo Implement a way to minimize shift switches
+
+//note Maybe cross product? As it is a matrix of 3 shifts by 7 workdays?
+
 //let minimizeShiftSwitch =
 //    sum()
 //    |> Objective.create "Minimize switches in schedule" Minimize
