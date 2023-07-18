@@ -5,11 +5,12 @@ open Flips.UnitsOfMeasure
 
 [<Measure>] type Euro
 [<Measure>] type Hour
+[<Measure>] type Shift
 
 type Qualification =
-    | EMT
-    | Nurse
-    | Doctor
+    | EMT = 1
+    | Nurse = 2
+    | Doctor = 3
 
 
 //! Worker information
@@ -17,14 +18,26 @@ let workers =
     [
         "Jenna";
         "Hannah";
-        "George"
+        "George";
+        "Freddy";
+        "Kiley";
+        "Delta";
+        "Marlee";
+        "Lawrence";
+        "Tucker";
     ]
 
 let workersQualification = 
     [
-        "Jenna", EMT
-        "Hannah", Nurse
-        "George", Doctor
+        "Jenna", Qualification.EMT
+        "Hannah", Qualification.Nurse
+        "George", Qualification.Doctor
+        "Freddy", Qualification.Doctor
+        "Kiley", Qualification.Doctor
+        "Delta", Qualification.EMT
+        "Marlee", Qualification.Doctor
+        "Lawrence", Qualification.EMT
+        "Tucker", Qualification.Nurse
     ] |> SMap.ofList
 
 let workersWage =
@@ -32,6 +45,12 @@ let workersWage =
         "Jenna" , 25<Euro/Hour>
         "Hannah", 20<Euro/Hour>
         "George", 30<Euro/Hour>
+        "Freddy", 31<Euro/Hour>
+        "Kiley", 28<Euro/Hour>
+        "Delta", 24<Euro/Hour>
+        "Marlee", 34<Euro/Hour>
+        "Lawrence", 25<Euro/Hour>
+        "Tucker", 18<Euro/Hour>
     ] |> SMap.ofList
 
 //! Shift information
@@ -39,50 +58,48 @@ let workdays = [1..7]
 
 let shifts =
     [
-        "Morning Shift";
-        "Late Shift";
+        "Morning Shift"
+        "Late Shift" 
         "Night Shift"
     ]
 
 let shiftLength = 
     [
-        "Morning Shift", 8<Hour>
-        "Late Shift", 8<Hour>
-        "Night Shift", 8<Hour>
+        "Morning Shift", 8<Hour/Shift>
+        "Late Shift", 8<Hour/Shift>
+        "Night Shift", 8<Hour/Shift>
     ] |> SMap.ofList
 
 let shiftQualifications = 
     [
-        "Morning Shift", [(1,EMT); (1,Doctor)]
-        "Late Shift", [(1,EMT); (1,Doctor); (1,Nurse)]
-        "Night Shift", [(1,Doctor)]
+        "Morning Shift", [(1,Qualification.EMT); (1,Qualification.Doctor)]
+        "Late Shift", [(1,Qualification.EMT); (1,Qualification.Doctor); (1,Qualification.Nurse)]
+        "Night Shift", [(1,Qualification.Doctor)]
     ] |> SMap.ofList
 
 //! Decision
 let shouldWork =
-    DecisionBuilder<Hour> "Should Work on this Day" {
+    DecisionBuilder<Shift> "Should Work on this Day" {
         for employee in workers do
             for x in workdays do
                 for shift in shifts ->
                     Boolean
     } |> SMap3.ofSeq
 
+let employee = shouldWork.[All,1,""]
 
 //! Constraints
 let qualifiedConstraints =
     ConstraintBuilder "Qualified to work constraint" {
-        for shift in shifts do
-            let qualifications = shiftQualifications.[shift] |> List.map snd
-            for employee in workers ->
-                workersQualification.[employee] == qualifications
-                
-
+        for day in workdays do
+            for shift in shifts ->
+                let quali = shouldWork.[All,day,shift]
+                let x = shiftQualifications.[shift] |> List.map snd
+                for req in x do
+                    for qualis in quali.Keys ->
+                        ((workersQualification.[qualis]) <== req)
     }
 
-//let minimalStaffingConstraints =
-//    ConstraintBuilder "Minimal amount of qualified workers" {
-
-//    }
 
 // Maximum worktime per week
 let maxHoursConstraints =
@@ -96,7 +113,7 @@ let noDoubleShiftConstraint =
     ConstraintBuilder "No Double Shift Constraint" {
         for employee in workers do
             for day in workdays ->
-            sum(shouldWork.[employee,day, All]) <== 1.0<Hour>
+            sum(shouldWork.[employee,day, All]) <== 1.0<Shift>
     }
 
 
