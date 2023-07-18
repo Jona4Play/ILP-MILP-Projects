@@ -1,6 +1,8 @@
 ﻿open Flips
+open System
 open Flips.Types
 open Flips.SliceMap
+open System.Reflection
 open Flips.UnitsOfMeasure
 
 [<Measure>] type Euro
@@ -26,7 +28,7 @@ type Qualification =
 
 type ShiftInfo = {
     Name:string
-    RequiredPersonal:(int<Worker> * Qualification) list
+    RequiredPersonal:(int<Worker/Shift> * Qualification) list
     Length:float<Hour>
     Strain:float<Strain>
 }
@@ -61,14 +63,11 @@ let workersQualification =
 let workersWage =
     [for record in workers -> record.Name, record.Wage] |> SMap.ofList
 
-let occupations =
-    [
-        EMT
-        Nurse
-        Doctor
-    ]
-
-
+// This constructs a list of the professions of the DU automatically
+let occupations : Qualification list =
+    typeof<Qualification>.GetEnumNames()
+    |> Array.map (fun name -> Enum.Parse(typeof<Qualification>, name) :?> Qualification)
+    |> Array.toList
 
 
 
@@ -77,16 +76,16 @@ let workdays = [1..7]
 
 let shifts =
     [
-        {Name="Morning Shift"; RequiredPersonal=[(1<Worker>, EMT); (1<Worker>,Doctor)];                     Length=8.0<Hour>;    Strain=1.2<Strain>}
-        {Name="Late Shift";    RequiredPersonal=[(1<Worker>, EMT); (1<Worker>,Doctor); (1<Worker>, Nurse)]; Length=8.0<Hour>;    Strain=1.0<Strain>}
-        {Name="Night Shift";   RequiredPersonal=[(1<Worker>,Doctor)];                                       Length=8.0<Hour>;    Strain=1.8<Strain>}
+        {Name="Morning Shift"; RequiredPersonal=[(1<Worker/Shift>, EMT); (1<Worker/Shift>,Doctor)];                           Length=8.0<Hour>;    Strain=1.2<Strain>}
+        {Name="Late Shift";    RequiredPersonal=[(1<Worker/Shift>, EMT); (1<Worker/Shift>,Doctor); (1<Worker/Shift>, Nurse)]; Length=8.0<Hour>;    Strain=1.0<Strain>}
+        {Name="Night Shift";   RequiredPersonal=[(1<Worker/Shift>,Doctor)];                                                   Length=8.0<Hour>;    Strain=1.8<Strain>}
     ]
 
 let shiftLength = 
     [for shift in shifts -> shift.Name, shift.Length] |> SMap.ofList
 
 // Compound shift info to an SMap<Shiftname,Qualification> -> Value
-let shiftQualifications = 
+let workersPerShiftPerQualifications = 
     [
         for shift in shifts do
             let requiredWorkers = shift.RequiredPersonal |> List.map fst
@@ -111,14 +110,16 @@ let shouldWork =
                     Boolean
     } |> SMap3.ofSeq
 
+let dec = {Name="Morning Shift"; RequiredPersonal=[(1<Worker/Shift>, EMT); (1<Worker/Shift>,Doctor)]; Length=8.0<Hour>; Strain=1.2<Strain>}
 
+let test = shouldWork.[All, All , dec] .* workersPerShiftPerQualifications.[dec.Name,All]
 //! Constraints
 //todo Finish
 let qualifiedConstraints =
     ConstraintBuilder "Is qualified and enough workers of in shift" {
         for shift in shifts do
             for profession in occupations ->
-                shouldWork.[All, All, shift] .*
+                sum(shouldWork.[All, All , shift] .* workersPerShiftPerQualifications.[shift.Name,All])  >== (workersPerShiftPerQualifications.[shift.Name, profession] * 1<Shift>)
     }
 
 // Maximum worktime per week
@@ -166,15 +167,7 @@ let objective =
 let printResult result =
     match result with
     | Optimal solution ->
-        // printfn "Objective Value: %f" (Objective.evaluate solution objective)
-        let shouldWorkHoures = Solution.getValues solution shouldWork
-
-        printfn "Plan Cost: $%.2f" (Objective.evaluate solution objective)
-        printfn "%A" shouldWorkHoures
-    
-        printfn "Name\tWorkweek"
-        for employee in workers do
-            printfn "%-12s: %12A" employee shouldWork.[employee,All,All]
+        printfn "%A" solution
     | _ -> printfn $"Unable to solve. Error: %A{result}"
 
 
