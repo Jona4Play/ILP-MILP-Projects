@@ -66,17 +66,10 @@ let shifts =
 
 
 let workersWage =
-    [for record in workers -> record.Name, record.Wage] |> SMap.ofList
+    [for record in workers -> record, record.Wage] |> SMap.ofList
 
 
 // This constructs a list of the professions from the DU automatically to accomodate changes
-
-
-let occupations : Qualification list =
-    typeof<Qualification>.GetEnumNames()
-    |> Array.map (fun name -> Enum.Parse(typeof<Qualification>, name) :?> Qualification)
-    |> Array.toList
-
 
 
 //! Shift information
@@ -85,7 +78,7 @@ let workdays = [1..7]
 
 // Here are the shifts helpers defined
 let shiftLength = 
-    [for shift in shifts -> shift.Name, shift.Length] |> SMap.ofList
+    [for shift in shifts -> shift, shift.Length] |> SMap.ofList
 
 // Compound shift info to an SMap<Shiftname,Qualification> -> Value
 let numberOfWorkersPerShiftPerQualifications = 
@@ -99,7 +92,7 @@ let numberOfWorkersPerShiftPerQualifications =
 
 
 let strainOfShifts =
-    [for shift in shifts -> shift.Name, shift.Strain] |> SMap.ofList
+    [for shift in shifts -> shift, shift.Strain] |> SMap.ofList
 
 //todo Rework Decision and constraints
 
@@ -121,20 +114,17 @@ let qualifiedConstraints =
         for day in workdays do
             for shift in shifts do
                 for (count, profession) in shift.RequiredPersonal ->
-                    let x : LinearExpression<Shift> = sum(shouldWork.[Where (fun employee -> employee.Occupation = profession), day, shift])
-                    let b = float (count) * 1.0<Shift>
-                    x >== b
+                    sum(shouldWork.[Where (fun employee -> employee.Occupation = profession), day, shift]) >== float (count) * 1.0<Shift>
     }
 
 
 
-
-//// Maximum worktime per week
+// Maximum worktime per week
 let maxHoursConstraints =
     ConstraintBuilder "Maximum Constraint" {
         for employee : Employee in workers ->
             let x : LinearExpression<Hour> = sum (shouldWork.[employee,All,All] .* shiftLength)
-            let y = 40<Hour>
+            let y = 40.0<Hour>
             x <== y
     }
 
@@ -150,14 +140,16 @@ let noDoubleShiftConstraint =
 
 
 
-
-
-
-
 //! Objectives
 
 let minimizeStrain =
-    sum(shouldWork .* strainOfShifts)
+    [
+        for employee in workers do
+            for day in workdays do
+                for shift in shifts ->
+                sum (shouldWork.[employee, day, All] .* strainOfShifts)
+    ]
+    |> List.sum
     |> Objective.create "Minimize strain on workers" Minimize
 
 //todo Implement a way to minimize shift switches
@@ -169,8 +161,14 @@ let minimizeStrain =
 //    |> Objective.create "Minimize switches in schedule" Minimize
 
 // Minimize costs
-let objective = 
-    sum(shouldWork .* shiftLength .* workersWage)
+let minimizeCosts = 
+    [
+        for employee in workers do
+            for day in workdays do
+                for shift in shifts ->
+                    shouldWork.[employee,day,shift] * shiftLength.[shift] * workersWage.[employee]
+    ]
+    |> List.sum
     |> Objective.create "Minimize Cost Target" Minimize
 
 //todo Rework this function
@@ -178,12 +176,13 @@ let objective =
 let printResult result =
     match result with
     | Optimal solution ->
-        printfn "%A" solution
+        printfn "Minimal personal costs:      %.2f" (Objective.evaluate solution minimizeCosts)
+        printfn "Minimal strain on employees: %.2f" (Objective.evaluate solution minimizeStrain)
     | _ -> printfn $"Unable to solve. Error: %A{result}"
 
 
 //! Solve the model
-objective
+minimizeCosts
 |> Model.create
 |> Model.addConstraints qualifiedConstraints
 |> Model.addConstraints noDoubleShiftConstraint
