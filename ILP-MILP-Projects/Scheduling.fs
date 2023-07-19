@@ -58,7 +58,7 @@ let workers =
     ]
 
 let workersQualification = 
-    [for record in workers -> record.Name, record.Occupation] |> SMap.ofList
+    [for record in workers -> record, record.Occupation] |> SMap.ofList
 
 let workersWage =
     [for record in workers -> record.Name, record.Wage] |> SMap.ofList
@@ -85,7 +85,7 @@ let shiftLength =
     [for shift in shifts -> shift.Name, shift.Length] |> SMap.ofList
 
 // Compound shift info to an SMap<Shiftname,Qualification> -> Value
-let workersPerShiftPerQualifications = 
+let numberOfWorkersPerShiftPerQualifications = 
     [
         for shift in shifts do
             let requiredWorkers = shift.RequiredPersonal |> List.map fst
@@ -103,7 +103,7 @@ let strainOfShifts =
 // Builds a binary matrix per worker of 3 shifts (as columns) and 7 days (as Rows) for every employee
 //! Decision
 let shouldWork =
-    DecisionBuilder<Shift> "Has to work" {
+    DecisionBuilder<Shift/Worker> "Has to work" {
         for employee in workers do
             for day in workdays do
                 for shift in shifts ->
@@ -112,14 +112,16 @@ let shouldWork =
 
 let dec = {Name="Morning Shift"; RequiredPersonal=[(1<Worker/Shift>, EMT); (1<Worker/Shift>,Doctor)]; Length=8.0<Hour>; Strain=1.2<Strain>}
 
-let test = shouldWork.[All, All , dec] .* workersPerShiftPerQualifications.[dec.Name,All]
+// let x = 
 //! Constraints
 //todo Finish
 let qualifiedConstraints =
     ConstraintBuilder "Is qualified and enough workers of in shift" {
-        for shift in shifts do
-            for profession in occupations ->
-                sum(shouldWork.[All, All , shift] .* workersPerShiftPerQualifications.[shift.Name,All])  >== (workersPerShiftPerQualifications.[shift.Name, profession] * 1<Shift>)
+        for day in workdays do
+            for shift in shifts do
+                for (count, profession) in shift.RequiredPersonal ->
+                    let employees = shouldWork.[Where (fun employee -> employee.Occupation = profession), day, shift]
+                    sum(employees) * 1.0<Worker> >== (count * 1<Shift>)
     }
 
 // Maximum worktime per week
@@ -134,7 +136,7 @@ let noDoubleShiftConstraint =
     ConstraintBuilder "No Double Shift Constraint" {
         for employee in workers do
             for day in workdays ->
-            sum(shouldWork.[employee,day, All]) <== 1.0<Shift>
+            sum(shouldWork.[employee,day, All]) <== 1.0<Shift/Worker>
     }
 
 
@@ -179,3 +181,5 @@ objective
 |> Model.addConstraints maxHoursConstraints
 |> Solver.solve Settings.basic
 |> printResult
+
+// ? Idea: Create a reverse model that takes in the shifts and requirements and creates a list of qualifications that are optimal
