@@ -19,6 +19,8 @@ open Flips.UnitsOfMeasure
     - No worker may work 2 shifts in one day
     - Each shift requires a specific amount of workers of a certain occupation
 *)
+// As well as minimizes possible code duplications and maximizes extensibility and modularity
+
 
 //! Domain Model
 type Qualification =
@@ -29,7 +31,7 @@ type Qualification =
 type ShiftInfo = {
     Name:string
     RequiredPersonal:(int<Worker/Shift> * Qualification) list
-    Length:float<Hour>
+    Length:float<Hour/Shift>
     Strain:float<Strain>
 }
 
@@ -38,9 +40,6 @@ type Employee = {
     Occupation:Qualification
     Wage:float<Euro/Hour>
 }
-
-
-
 
 
 //! Worker information
@@ -57,13 +56,22 @@ let workers =
         {Name="Tucker";   Occupation = Nurse;   Wage=18.0<Euro/Hour>}
     ]
 
-let workersQualification = 
-    [for record in workers -> record, record.Occupation] |> SMap.ofList
+//! Shift information
+let shifts =
+    [
+        {Name="Morning Shift"; RequiredPersonal=[(1<Worker/Shift>, EMT); (1<Worker/Shift>,Doctor)];                           Length=8.0<Hour/Shift>;    Strain=1.2<Strain>}
+        {Name="Late Shift";    RequiredPersonal=[(1<Worker/Shift>, EMT); (1<Worker/Shift>,Doctor); (1<Worker/Shift>, Nurse)]; Length=8.0<Hour/Shift>;    Strain=1.0<Strain>}
+        {Name="Night Shift";   RequiredPersonal=[(1<Worker/Shift>,Doctor)];                                                   Length=8.0<Hour/Shift>;    Strain=1.8<Strain>}
+    ]
+
 
 let workersWage =
     [for record in workers -> record.Name, record.Wage] |> SMap.ofList
 
-// This constructs a list of the professions of the DU automatically
+
+// This constructs a list of the professions from the DU automatically to accomodate changes
+
+
 let occupations : Qualification list =
     typeof<Qualification>.GetEnumNames()
     |> Array.map (fun name -> Enum.Parse(typeof<Qualification>, name) :?> Qualification)
@@ -74,13 +82,8 @@ let occupations : Qualification list =
 //! Shift information
 let workdays = [1..7]
 
-let shifts =
-    [
-        {Name="Morning Shift"; RequiredPersonal=[(1<Worker/Shift>, EMT); (1<Worker/Shift>,Doctor)];                           Length=8.0<Hour>;    Strain=1.2<Strain>}
-        {Name="Late Shift";    RequiredPersonal=[(1<Worker/Shift>, EMT); (1<Worker/Shift>,Doctor); (1<Worker/Shift>, Nurse)]; Length=8.0<Hour>;    Strain=1.0<Strain>}
-        {Name="Night Shift";   RequiredPersonal=[(1<Worker/Shift>,Doctor)];                                                   Length=8.0<Hour>;    Strain=1.8<Strain>}
-    ]
 
+// Here are the shifts helpers defined
 let shiftLength = 
     [for shift in shifts -> shift.Name, shift.Length] |> SMap.ofList
 
@@ -110,9 +113,7 @@ let shouldWork =
                     Boolean
     } |> SMap3.ofSeq
 
-let dec = {Name="Morning Shift"; RequiredPersonal=[(1<Worker/Shift>, EMT); (1<Worker/Shift>,Doctor)]; Length=8.0<Hour>; Strain=1.2<Strain>}
 
-// let x = 
 //! Constraints
 //todo Finish
 let qualifiedConstraints =
@@ -120,9 +121,11 @@ let qualifiedConstraints =
         for day in workdays do
             for shift in shifts do
                 for (count, profession) in shift.RequiredPersonal ->
-                    let employees = shouldWork.[Where (fun employee -> employee.Occupation = profession), day, shift]
-                    sum(employees) * 1.0<Worker> >== (count * 1<Shift>)
+                    (sum(shouldWork.[Where (fun employee -> employee.Occupation = profession), day, shift]) * 1<Worker/Shift>) >== (count * 1<Shift/Worker>) * 1<Shift/Worker>
     }
+
+
+
 
 // Maximum worktime per week
 let maxHoursConstraints =
