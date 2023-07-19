@@ -1,4 +1,4 @@
-﻿﻿open Flips
+﻿open Flips
 open System
 open Flips.Types
 open Flips.SliceMap
@@ -106,7 +106,7 @@ let strainOfShifts =
 // Builds a binary matrix per worker of 3 shifts (as columns) and 7 days (as Rows) for every employee
 //! Decision
 let shouldWork =
-    DecisionBuilder<Shift/Worker> "Has to work" {
+    DecisionBuilder<Shift> "Has to work" {
         for employee in workers do
             for day in workdays do
                 for shift in shifts ->
@@ -121,17 +121,21 @@ let qualifiedConstraints =
         for day in workdays do
             for shift in shifts do
                 for (count, profession) in shift.RequiredPersonal ->
-                    (sum(shouldWork.[Where (fun employee -> employee.Occupation = profession), day, shift]) * 1<Worker/Shift>) >== (count * 1<Shift/Worker>) * 1<Shift/Worker>
+                    let x : LinearExpression<Shift> = sum(shouldWork.[Where (fun employee -> employee.Occupation = profession), day, shift])
+                    let b = float (count) * 1.0<Shift>
+                    x >== b
     }
 
 
 
 
-// Maximum worktime per week
+//// Maximum worktime per week
 let maxHoursConstraints =
     ConstraintBuilder "Maximum Constraint" {
-        for employee in workers ->
-            sum (shouldWork.[employee,All,All] .* shiftLength) <== 40<Hour/Worker>
+        for employee : Employee in workers ->
+            let x : LinearExpression<Hour> = sum (shouldWork.[employee,All,All] .* shiftLength)
+            let y = 40<Hour>
+            x <== y
     }
 
 // No double shift on one day can be worked
@@ -139,7 +143,9 @@ let noDoubleShiftConstraint =
     ConstraintBuilder "No Double Shift Constraint" {
         for employee in workers do
             for day in workdays ->
-            sum(shouldWork.[employee,day, All]) <== 1.0<Shift/Worker>
+            let x = sum(shouldWork.[employee,day, All])
+            let y = 1.0<Shift>
+            x <== y
     }
 
 
