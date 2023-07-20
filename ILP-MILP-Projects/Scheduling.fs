@@ -69,9 +69,6 @@ let workersWage =
     [for record in workers -> record, record.Wage] |> SMap.ofList
 
 
-// This constructs a list of the professions from the DU automatically to accomodate changes
-
-
 //! Shift information
 let workdays = [1..7]
 
@@ -109,13 +106,14 @@ let shouldWork =
 
 //! Constraints
 //todo Finish
-let qualifiedConstraints =
-    ConstraintBuilder "Is qualified and enough workers of in shift" {
-        for day in workdays do
-            for shift in shifts do
-                for (count, profession) in shift.RequiredPersonal ->
-                    sum(shouldWork.[Where (fun employee -> employee.Occupation = profession), day, shift]) >== float (count) * 1.0<Shift>
-    }
+// let qualifiedConstraints =
+//     ConstraintBuilder "Is qualified and enough workers of in shift" {
+//         for day in workdays do
+//             for shift in shifts do
+//                 for (count, profession) in shift.RequiredPersonal ->
+//                     sum(shouldWork.[Where (fun employee -> employee.Occupation = profession), day, shift]) >== float (count) * 1.0<Shift>
+//     }
+
 
 
 
@@ -178,13 +176,23 @@ let printResult result =
     | Optimal solution ->
         printfn "Minimal personal costs:      %.2f" (Objective.evaluate solution minimizeCosts)
         printfn "Minimal strain on employees: %.2f" (Objective.evaluate solution minimizeStrain)
+        let values = Solution.getValues solution shouldWork
+        for employee in workers do
+            let solutionmatrix =
+                [for day in workdays do [for shift in shifts -> values.[employee, day, shift]]]
+            printfn "%s" (employee.Name)
+            for shift in shifts do
+                printf "(%s) " (shift.Name)
+            printf "\n"
+            for day in workdays do 
+                printf "%A\n" (solutionmatrix[day - 1])
     | _ -> printfn $"Unable to solve. Error: %A{result}"
 
 
 //! Solve the model
 minimizeCosts
 |> Model.create
-|> Model.addConstraints qualifiedConstraints
+// |> Model.addConstraints qualifiedConstraints
 |> Model.addConstraints noDoubleShiftConstraint
 |> Model.addConstraints maxHoursConstraints
 |> Solver.solve Settings.basic
