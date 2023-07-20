@@ -106,13 +106,13 @@ let shouldWork =
 
 //! Constraints
 //todo Finish
-// let qualifiedConstraints =
-//     ConstraintBuilder "Is qualified and enough workers of in shift" {
-//         for day in workdays do
-//             for shift in shifts do
-//                 for (count, profession) in shift.RequiredPersonal ->
-//                     sum(shouldWork.[Where (fun employee -> employee.Occupation = profession), day, shift]) >== float (count) * 1.0<Shift>
-//     }
+let qualifiedConstraints =
+    ConstraintBuilder "Is qualified and enough workers of in shift" {
+        for day in workdays do
+            for shift in shifts do
+                for (count, profession) in shift.RequiredPersonal ->
+                    sum(shouldWork.[Where (fun employee -> employee.Occupation = profession), day, shift]) >== float (count) * 1.0<Shift>
+    }
 
 
 
@@ -192,7 +192,7 @@ let printResult result =
 //! Solve the model
 minimizeCosts
 |> Model.create
-// |> Model.addConstraints qualifiedConstraints
+|> Model.addConstraints qualifiedConstraints
 |> Model.addConstraints noDoubleShiftConstraint
 |> Model.addConstraints maxHoursConstraints
 |> Solver.solve Settings.basic
