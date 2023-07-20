@@ -139,7 +139,7 @@ let noDoubleShiftConstraint =
         for employee in workers do
             for day in workdays ->
             sum(shouldWork.[employee,day, All]) <== 1.0<Shift>
-    }
+}
 
 
 //! Objectives
