@@ -77,21 +77,10 @@ let workdays = [1..7]
 let shiftLength = 
     [for shift in shifts -> shift, shift.Length] |> SMap.ofList
 
-// Compound shift info to an SMap<Shiftname,Qualification> -> Value
-let numberOfWorkersPerShiftPerQualifications = 
-    [
-        for shift in shifts do
-            let requiredWorkers = shift.RequiredPersonal |> List.map fst
-            let qualifications = shift.RequiredPersonal |> List.map snd
-            for x = 0 to qualifications.Length - 1 do
-                (shift.Name, qualifications[x]), requiredWorkers.[x] 
-    ] |> SMap2.ofList
-
 
 let strainOfShifts =
     [for shift in shifts -> shift, shift.Strain] |> SMap.ofList
 
-//todo Rework Decision and constraints
 
 // Builds a binary matrix per worker of 3 shifts (as columns) and 7 days (as Rows) for every employee
 //! Decision
@@ -163,6 +152,8 @@ let minimizeStrain =
 //    |> Objective.create "Minimize switches in schedule" Minimize
 
 // Minimize costs
+
+
 let minimizeCosts = 
     [
         for employee in workers do
