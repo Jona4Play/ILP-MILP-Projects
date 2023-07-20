@@ -105,21 +105,24 @@ let shouldWork =
 
 
 //! Constraints
-//todo Finish
-// let qualifiedConstraints =
-//     ConstraintBuilder "Is qualified and enough workers of in shift" {
-//         for day in workdays do
-//             for shift in shifts do
-//                 for (count, profession) in shift.RequiredPersonal ->
-//                     sum(shouldWork.[Where (fun employee -> employee.Occupation = profession), day, shift]) >== float (count) * 1.0<Shift>
-//     }
+(*
+    We need more or an equal amount of workers of the matching profession to be working per shift requirements:
+    - shouldWork.[Where(employee = reqProfession), day, shift] >== Count<Worker/Shift>
+    
+    Each worker can only work a certain amount of hours
+    - shouldWork.[employee, All, All] <== x<Hour>
 
-//! Testing constraint
-let oneWorkingPerShift =
-    ConstraintBuilder "One Worker per shift" {
+    No worker can enter 2 shifts per day
+    - shouldWork.[employee, day, All] <== 1.0<Shift>
+*)
+
+// Ensures sufficient, qualified staffing
+let qualifiedConstraints =
+    ConstraintBuilder "Is qualified and enough workers of in shift" {
         for day in workdays do
-            for shift in shifts ->
-                sum(shouldWork.[All, day, shift]) >== 1.0<Shift>
+            for shift in shifts do
+                for (reqWorkers, qualification) in shift.RequiredPersonal ->
+                    sum(shouldWork.[Where (fun employee -> employee.Occupation = qualification), day, shift]) >== float(reqWorkers) * 1.0<Shift>
     }
 
 
@@ -127,9 +130,7 @@ let oneWorkingPerShift =
 let maxHoursConstraints =
     ConstraintBuilder "Maximum Constraint" {
         for employee : Employee in workers ->
-            let x : LinearExpression<Hour> = sum (shouldWork.[employee,All,All] .* shiftLength)
-            let y = 40.0<Hour>
-            x <== y
+            sum (shouldWork.[employee,All,All] .* shiftLength) <== 50.0<Hour>
     }
 
 // No double shift on one day can be worked
@@ -137,9 +138,7 @@ let noDoubleShiftConstraint =
     ConstraintBuilder "No Double Shift Constraint" {
         for employee in workers do
             for day in workdays ->
-            let x = sum(shouldWork.[employee,day, All])
-            let y = 1.0<Shift>
-            x <== y
+            sum(shouldWork.[employee,day, All]) <== 1.0<Shift>
     }
 
 
@@ -174,7 +173,6 @@ let minimizeCosts =
     |> List.sum
     |> Objective.create "Minimize Cost Target" Minimize
 
-
 // Printing method
 let printResult result =
     match result with
@@ -182,7 +180,6 @@ let printResult result =
         printfn "Minimal personal costs:      %.2f" (Objective.evaluate solution minimizeCosts)
         printfn "Minimal strain on employees: %.2f" (Objective.evaluate solution minimizeStrain)
         let values = Solution.getValues solution shouldWork |> SMap3.ofMap
-        let solutionMatrix = [for employee in workers do [for day in workdays do [for shift in shifts -> values.[employee, day, shift]]]]
         for employee in workers do
             let solutionmatrix =
                 [for day in workdays do [for shift in shifts -> values.[employee, day, shift]]]
@@ -207,27 +204,28 @@ let printResult result =
                     ]
                 ]
             ]
+
         printfn "Schedule: "
         for shift in shifts do
                 printf "(%s) " (shift.Name)
         printf "\n"
-        
+
         for x in [0..100] do
             printf "-"
         printf "\n"
 
-
         for day in workdays do
             printfn "%d | %A" (day) (formattedTable.[day - 1])
-            
+        
 
-    | _ -> printfn $"Unable to solve. Error: %A{result}"
+    | _ -> printfn $"Unable to solve. Error: %A{result}. This might be because of a problem in the domain model or a conflicting constraint like the 'Max working hours'"
 
 
 //! Solve the model
 minimizeCosts
 |> Model.create
-|> Model.addConstraints oneWorkingPerShift
+|> Model.addObjective minimizeStrain
+|> Model.addConstraints qualifiedConstraints
 |> Model.addConstraints noDoubleShiftConstraint
 |> Model.addConstraints maxHoursConstraints
 |> Solver.solve Settings.basic
