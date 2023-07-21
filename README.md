@@ -6,8 +6,8 @@ These will range from simple ones to the ones i break at
 ## In progress
 | Name | Objective |
 | :--- | :--- |
-| Scheduling | Creating a working schedule for an imaginary hospital using binary decisions and constraints on worktime and qualifications|
 
 ## Done
 | Name | Objective |
 | :--- | :--- |
+| Scheduling | Creating a working schedule for an imaginary hospital using binary decisions and constraints on worktime and qualifications|
