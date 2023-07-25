@@ -6,6 +6,7 @@ These will range from simple ones to the ones i break at
 ## In progress
 | Name | Objective |
 | :--- | :--- |
+| Staffing Assistant | Constructs the list of the staff needed to fit to a given schedule |
 
 ## Done
 | Name | Objective |
