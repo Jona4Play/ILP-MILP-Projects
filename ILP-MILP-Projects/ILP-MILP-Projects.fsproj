@@ -7,7 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Scheduling.fs" />
+    <Compile Include="Done\Scheduling.fs" />
+    <Compile Include="ToDo\PersonalPlanner.fs" />
+    <Compile Include="Wrapper.fs" />
   </ItemGroup>
 
   <ItemGroup>

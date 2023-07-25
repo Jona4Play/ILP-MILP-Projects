@@ -1,8 +1,8 @@
-﻿open Flips
-open System
+﻿module Scheduling
+
+open Flips
 open Flips.Types
 open Flips.SliceMap
-open System.Reflection
 open Flips.UnitsOfMeasure
 
 [<Measure>] type Euro
@@ -213,13 +213,14 @@ let printResult result =
 
 
 //! Solve the model
-minimizeCosts
-|> Model.create
-|> Model.addObjective minimizeStrain
-|> Model.addConstraints qualifiedConstraints
-|> Model.addConstraints noDoubleShiftConstraint
-|> Model.addConstraints maxHoursConstraints
-|> Solver.solve Settings.basic
-|> printResult
+let solve () =
+    minimizeCosts
+    |> Model.create
+    |> Model.addObjective minimizeStrain
+    |> Model.addConstraints qualifiedConstraints
+    |> Model.addConstraints noDoubleShiftConstraint
+    |> Model.addConstraints maxHoursConstraints
+    |> Solver.solve Settings.basic
+    |> printResult
 
 // ? Idea: Create a reverse model that takes in the shifts and requirements and creates a list of qualifications that are optimal
