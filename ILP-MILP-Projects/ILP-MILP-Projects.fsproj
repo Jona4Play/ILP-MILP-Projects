@@ -8,13 +8,16 @@
 
   <ItemGroup>
     <Compile Include="Done\Scheduling.fs" />
-    <Compile Include="ToDo\PersonalPlanner.fs" />
+    <Compile Include="ToDo\Scheduling-Modularised.fs" />
+    <Compile Include="ToDo\Staffing-Assistant.fs" />
     <Compile Include="Wrapper.fs" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Expecto" Version="10.1.0" />
     <PackageReference Include="Flips" Version="2.4.9" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Suave" Version="2.6.2" />
   </ItemGroup>
 
 </Project>

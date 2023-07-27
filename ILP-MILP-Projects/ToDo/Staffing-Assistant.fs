@@ -1,4 +1,4 @@
-﻿module PersonalPlanner
+﻿module StaffingAssistant
 
 open Flips
 open Flips.Types
@@ -78,17 +78,6 @@ let numberOfWorkersByProfession =
     } |> SMap.ofSeq
 
 
-//! Constraints
-(*
-    We need more or an equal amount of workers of the matching profession to be working per shift requirements:
-    - shouldWork.[Where(employee = reqProfession), day, shift] >== Count<Worker/Shift>
-    
-    Each worker can only work a certain amount of hours
-    - shouldWork.[employee, All, All] <== x<Hour>
-
-    No worker can enter 2 shifts per day
-    - shouldWork.[employee, day, All] <== 1.0<Shift>
-*)
 
 // Maximum worktime per week
 let minWorkerRequirement =
@@ -121,8 +110,6 @@ let minimizeCosts =
 let printResult result =
     match result with
     | Optimal solution ->
-        printfn "Minimal personal costs:      %.2f" (Objective.evaluate solution minimizeCosts)
-        
         let values = Solution.getValues solution numberOfWorkersByProfession
 
         for qualification in qualifications do
