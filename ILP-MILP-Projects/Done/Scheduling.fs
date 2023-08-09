@@ -30,7 +30,7 @@ type Qualification =
 
 type ShiftInfo = {
     Name:string
-    RequiredPersonal:(int<Worker/Shift> * Qualification) list
+    RequiredPersonnel:(int<Worker/Shift> * Qualification) list
     Length:float<Hour/Shift>
     Strain:float<Strain>
 }
@@ -59,9 +59,9 @@ let workers =
 //! Shift information
 let shifts =
     [
-        {Name="Morning Shift"; RequiredPersonal=[(1<Worker/Shift>, EMT); (1<Worker/Shift>,Doctor)];                           Length=8.0<Hour/Shift>;    Strain=1.2<Strain>}
-        {Name="Late Shift";    RequiredPersonal=[(1<Worker/Shift>, EMT); (1<Worker/Shift>,Doctor); (1<Worker/Shift>, Nurse)]; Length=8.0<Hour/Shift>;    Strain=1.0<Strain>}
-        {Name="Night Shift";   RequiredPersonal=[(1<Worker/Shift>,Doctor)];                                                   Length=8.0<Hour/Shift>;    Strain=1.8<Strain>}
+        {Name="Morning Shift"; RequiredPersonnel=[(1<Worker/Shift>, EMT); (1<Worker/Shift>,Doctor)];                           Length=8.0<Hour/Shift>;    Strain=1.2<Strain>}
+        {Name="Late Shift";    RequiredPersonnel=[(1<Worker/Shift>, EMT); (1<Worker/Shift>,Doctor); (1<Worker/Shift>, Nurse)]; Length=8.0<Hour/Shift>;    Strain=1.0<Strain>}
+        {Name="Night Shift";   RequiredPersonnel=[(1<Worker/Shift>,Doctor)];                                                   Length=8.0<Hour/Shift>;    Strain=1.8<Strain>}
     ]
 
 
@@ -110,7 +110,7 @@ let qualifiedConstraints =
     ConstraintBuilder "Is qualified and enough workers of in shift" {
         for day in workdays do
             for shift in shifts do
-                for (reqWorkers, qualification) in shift.RequiredPersonal ->
+                for (reqWorkers, qualification) in shift.RequiredPersonnel ->
                     sum(shouldWork.[Where (fun employee -> employee.Occupation = qualification), day, shift]) >== float(reqWorkers) * 1.0<Shift>
     }
 
@@ -118,7 +118,7 @@ let qualifiedConstraints =
 // Maximum worktime per week
 let maxHoursConstraints =
     ConstraintBuilder "Maximum Constraint" {
-        for employee : Employee in workers ->
+        for employee in workers ->
             sum (shouldWork.[employee,All,All] .* shiftLength) <== 50.0<Hour>
     }
 
@@ -128,7 +128,7 @@ let noDoubleShiftConstraint =
         for employee in workers do
             for day in workdays ->
             sum(shouldWork.[employee,day, All]) <== 1.0<Shift>
-}
+    }
 
 
 //! Objectives
@@ -141,18 +141,6 @@ let minimizeStrain =
     ]
     |> List.sum
     |> Objective.create "Minimize strain on workers" Minimize
-
-
-
-//todo Implement a way to minimize shift switches
-//note Maybe minimize cross product? As it is a matrix?
-
-//let minimizeShiftSwitch =
-//    sum()
-//    |> Objective.create "Minimize switches in schedule" Minimize
-
-// Minimize costs
-
 
 let minimizeCosts = 
     [
